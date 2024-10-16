@@ -1,26 +1,53 @@
+import os
 import boto3
 import json
 import psycopg2
 
-# Retrieve credentials from SSM Parameter Store
-ssm = boto3.client('ssm')
-param = ssm.get_parameter(Name='/myapp/db_credentials', WithDecryption=True)
-credentials = json.loads(param['Parameter']['Value'])
+def get_db_credentials(env):
+    """Retrieve database credentials from SSM Parameter Store for the given environment."""
+    ssm = boto3.client('ssm')
+    parameter_name = f'/myapp/{env}/db_credentials'
+    
+    try:
+        param = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
+        credentials = json.loads(param['Parameter']['Value'])
+        return credentials
+    except Exception as e:
+        print(f"Error retrieving credentials: {e}")
+        return None
 
-# Connect to PostgreSQL RDS
-conn = psycopg2.connect(
-    dbname="mydb",
-    user=credentials['username'],
-    password=credentials['password'],
-    host="your-rds-endpoint",  # Replace with your RDS endpoint
-    port="5432"
-)
+def main():
+    # Determine the environment (default to 'dev' if not set)
+    env = os.getenv("ENVIRONMENT", "dev")
+    
+    # Retrieve credentials
+    credentials = get_db_credentials(env)
+    
+    if credentials is None:
+        print("Failed to retrieve database credentials.")
+        return
 
-cursor = conn.cursor()
-cursor.execute("SELECT version();")
-db_version = cursor.fetchone()
+    # Connect to PostgreSQL RDS
+    try:
+        conn = psycopg2.connect(
+            dbname=credentials['dbname'],  # Use environment-specific dbname
+            user=credentials['username'],
+            password=credentials['password'],
+            host=credentials['host'],  # RDS endpoint should also be stored in SSM
+            port="5432"
+        )
 
-print(f"Connected to database version: {db_version[0]}")
+        cursor = conn.cursor()
+        cursor.execute("SELECT version();")
+        db_version = cursor.fetchone()
 
-cursor.close()
-conn.close()
+        print(f"Connected to database version: {db_version[0]}")
+
+        cursor.close()
+        conn.close()
+    
+    except Exception as e:
+        print(f"Database connection error: {e}")
+
+if __name__ == "__main__":
+    main()
