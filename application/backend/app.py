@@ -1,53 +1,45 @@
-import os
 import boto3
-import json
-import psycopg2
+import pg8000
+import os
+import logging
 
-def get_db_credentials(env):
-    """Retrieve database credentials from SSM Parameter Store for the given environment."""
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+def get_db_credentials():
     ssm = boto3.client('ssm')
-    parameter_name = f'/myapp/{env}/db_credentials'
-    
     try:
-        param = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
-        credentials = json.loads(param['Parameter']['Value'])
-        return credentials
+        username = ssm.get_parameter(Name='/myapp/db_username', WithDecryption=False)['Parameter']['Value']
+        password = ssm.get_parameter(Name='/myapp/db_password', WithDecryption=True)['Parameter']['Value']
+        return username, password
     except Exception as e:
-        print(f"Error retrieving credentials: {e}")
-        return None
+        logging.error(f'Error retrieving credentials from SSM: {e}')
+        raise
 
-def main():
-    # Determine the environment (default to 'dev' if not set)
-    env = os.getenv("ENVIRONMENT", "dev")
+def connect_to_db():
+    username, password = get_db_credentials()
+    rds_host = os.getenv('RDS_HOST', 'ninhnh-vti-rds-database.cfwoy6guyqmd.us-east-1.rds.amazonaws.com')
     
-    # Retrieve credentials
-    credentials = get_db_credentials(env)
-    
-    if credentials is None:
-        print("Failed to retrieve database credentials.")
-        return
-
-    # Connect to PostgreSQL RDS
     try:
-        conn = psycopg2.connect(
-            dbname=credentials['dbname'],  # Use environment-specific dbname
-            user=credentials['username'],
-            password=credentials['password'],
-            host=credentials['host'],  # RDS endpoint should also be stored in SSM
-            port="5432"
+        connection = pg8000.connect(
+            host=rds_host,
+            database='postgres',  # Adjust if you have a specific database name
+            user=username,
+            password=password
         )
-
-        cursor = conn.cursor()
+        logging.info('Connected to database.')
+        
+        # Get the server version using SQL
+        cursor = connection.cursor()
         cursor.execute("SELECT version();")
-        db_version = cursor.fetchone()
+        db_version = cursor.fetchone()[0]
+        logging.info(f'Database version: {db_version}')
 
-        print(f"Connected to database version: {db_version[0]}")
-
+        # Clean up
         cursor.close()
-        conn.close()
-    
+        connection.close()
     except Exception as e:
-        print(f"Database connection error: {e}")
+        logging.error(f'Error connecting to the database: {e}')
 
 if __name__ == "__main__":
-    main()
+    connect_to_db()
