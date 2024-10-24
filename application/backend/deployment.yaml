@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: my-python-app
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: my-python-app
@@ -14,6 +14,7 @@ spec:
     spec:
       containers:
       - name: my-python-app
-        image: <your-ecr-image-uri>  # Replace with your ECR image URI
+        image: 084375555299.dkr.ecr.us-east-1.amazonaws.com/backend:latest
         ports:
-        - containerPort: 80
+        - containerPort: 5000
+          name: http

@@ -7,28 +7,36 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 def get_db_credentials():
-    ssm = boto3.client('ssm')
+    region_name = 'us-east-1'
+    ssm = boto3.client('ssm', region_name=region_name)
     try:
-        username = ssm.get_parameter(Name='/myapp/db_username', WithDecryption=False)['Parameter']['Value']
-        password = ssm.get_parameter(Name='/myapp/db_password', WithDecryption=True)['Parameter']['Value']
+        username = ssm.get_parameter(Name='/ninhnh/db_username', WithDecryption=True)['Parameter']['Value']
+        password = ssm.get_parameter(Name='/ninhnh/db_password', WithDecryption=True)['Parameter']['Value']
+        
+        logging.info(f'Retrieved username: {username}')  # Log username
         return username, password
     except Exception as e:
         logging.error(f'Error retrieving credentials from SSM: {e}')
         raise
 
+
 def connect_to_db():
     username, password = get_db_credentials()
-    rds_host = os.getenv('RDS_HOST', 'ninhnh-vti-rds-database.cfwoy6guyqmd.us-east-1.rds.amazonaws.com')
-    
+    rds_host = os.getenv('RDS_HOST', 'terraform-20241024033946277900000002.cfwoy6guyqmd.us-east-1.rds.amazonaws.com')
+
     try:
         connection = pg8000.connect(
             host=rds_host,
             database='postgres',  # Adjust if you have a specific database name
             user=username,
-            password=password
+            password=password,
+            timeout=10  # Increase timeout to 10 seconds
         )
         logging.info('Connected to database.')
-        
+
+        # Print connection properties
+        logging.info(f'Connection properties: Host={rds_host}, User={username}')
+
         # Get the server version using SQL
         cursor = connection.cursor()
         cursor.execute("SELECT version();")

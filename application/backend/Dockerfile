@@ -1,14 +1,16 @@
-# Use a slim version of Python 3.8 as the base image
-FROM python:3.8-slim
+FROM python:3.9
 
-# Set the working directory in the container
-WORKDIR /app
+# Install the AWS CLI
+RUN apt-get update && apt-get install -y awscli
 
-# Copy the application code into the container
-COPY app.py .
+# Copy your application code
+COPY app.py /app/app.py
 
-# Install required packages
+# Install required Python packages
 RUN pip install boto3 pg8000
 
-# Command to run the application
+# Set the working directory
+WORKDIR /app
+
+# Set the command to run your app
 CMD ["python", "app.py"]

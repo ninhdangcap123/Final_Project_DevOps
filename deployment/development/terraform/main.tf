@@ -2,9 +2,71 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# Create a VPC
+resource "aws_vpc" "default" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "ninhnh-vti-vpc"
+  }
+}
+
+# Retrieve availability zones
+data "aws_availability_zones" "available" {}
+
+# Create public subnets
+resource "aws_subnet" "public_subnet" {
+  count                   = 2
+  vpc_id                 = aws_vpc.default.id
+  cidr_block             = "10.0.${count.index}.0/24"
+  availability_zone      = element(data.aws_availability_zones.available.names, count.index)
+
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "ninhnh-vti-public-subnet-${count.index}"
+  }
+}
+
+# Create an Internet Gateway
+resource "aws_internet_gateway" "default" {
+  vpc_id = aws_vpc.default.id
+
+  tags = {
+    Name = "ninhnh-vti-internet-gateway"
+  }
+}
+
+# Create a route table for the public subnets
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.default.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.default.id
+  }
+
+  tags = {
+    Name = "public_route_table"
+  }
+}
+
+# Associate the route table with the public subnets
+resource "aws_route_table_association" "public_subnet_association" {
+  count          = 2
+  subnet_id      = aws_subnet.public_subnet[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
 # Create an S3 bucket for static website hosting
 resource "aws_s3_bucket" "static_site" {
-  bucket = "ninhnh-vti-bucket-unique-123456"
+  bucket = "ninhnh-vti-bucket-static-web"
+
+  tags = {
+    Name = "ninhnh-vti-static-site-bucket"
+  }
 }
 
 # Configure S3 bucket for website hosting
@@ -16,55 +78,37 @@ resource "aws_s3_bucket_website_configuration" "static_site_config" {
   }
 }
 
-# Create a PostgreSQL RDS instance
-resource "aws_db_instance" "default" {
-  allocated_storage       = 20
-  engine                = "postgres"
-  engine_version        = "16.3"  # Ensure this version is available
-  instance_class        = "db.t4g.micro"
-  db_name               = "postgres"  # Changed from name to db_name
-  username              = aws_ssm_parameter.db_username.value  # Reference SSM parameter
-  password              = aws_ssm_parameter.db_password.value  # Reference SSM parameter
-  db_subnet_group_name  = aws_db_subnet_group.default.name
-  vpc_security_group_ids = [aws_security_group.default.id]
-  skip_final_snapshot   = true
-}
-
 # Security group to allow PostgreSQL traffic
 resource "aws_security_group" "default" {
-  name_prefix = "allow_postgres_"
-  description = "Allow Postgres traffic on port 5432"
+  vpc_id = aws_vpc.default.id
+
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-# Subnet group for RDS
-resource "aws_db_subnet_group" "default" {
-  name       = "default-subnet-group"
-  subnet_ids = data.aws_subnets.selected.ids
-}
-
-# Data to dynamically fetch the subnets in the VPC
-data "aws_subnets" "selected" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.selected.id]
+  tags = {
+    Name = "postgres_security_group"
   }
 }
 
-# Data to fetch the default VPC in the region
-data "aws_vpc" "selected" {
-  default = true
+# Create a subnet group for RDS
+resource "aws_db_subnet_group" "default" {
+  name       = "default-subnet-group"
+  subnet_ids = aws_subnet.public_subnet[*].id
+
+  tags = {
+    Name = "ninhnh-vti-rds-subnet-group"
+  }
 }
 
 # Define variables for sensitive data
@@ -96,9 +140,87 @@ resource "aws_ssm_parameter" "db_password" {
   value       = var.db_password
 }
 
+# Data source to retrieve the SSM parameter for the database username
+data "aws_ssm_parameter" "db_username" {
+  name = aws_ssm_parameter.db_username.name
+}
+
+# Data source to retrieve the SSM parameter for the database password
+data "aws_ssm_parameter" "db_password" {
+  name            = aws_ssm_parameter.db_password.name
+  with_decryption = true
+}
+
+# Create a PostgreSQL RDS instance
+resource "aws_db_instance" "default" {
+allocated_storage       = 20
+  engine                 = "postgres"
+  engine_version         = "16.3"
+  instance_class         = "db.t4g.micro"
+  db_name                = "postgres"
+
+  username               = data.aws_ssm_parameter.db_username.value
+  password               = data.aws_ssm_parameter.db_password.value
+
+  db_subnet_group_name   = aws_db_subnet_group.default.name
+  vpc_security_group_ids = [aws_security_group.default.id]
+  skip_final_snapshot    = true
+  publicly_accessible     = true
+
+  depends_on = [
+    aws_ssm_parameter.db_username,
+    aws_ssm_parameter.db_password
+  ]
+
+  tags = {
+    Name = "ninhnh-vti-postgres-db-instance"
+  }
+}
+
 # Create an Elastic Container Registry (ECR) to hold container images
 resource "aws_ecr_repository" "my_ecr" {
   name = "backend"
+
+  tags = {
+    Name = "ninhnh-vti-ecr"
+  }
+}
+
+# Create an EKS cluster
+resource "aws_eks_cluster" "my_cluster" {
+  name     = "ninhnh-vti-cluster"
+  role_arn = aws_iam_role.eks_cluster_role.arn
+
+  vpc_config {
+    subnet_ids = aws_subnet.public_subnet[*].id
+  }
+
+  tags = {
+    Name = "ninhnh-vti-cluster"
+  }
+}
+
+# IAM role for EKS
+resource "aws_iam_role" "eks_cluster_role" {
+  name = "eks_cluster_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Principal = {
+          Service = "eks.amazonaws.com"
+        }
+        Effect    = "Allow"
+        Sid       = ""
+      },
+    ]
+  })
+
+  tags = {
+    Name = "ninhnh-vti-eks-cluster-role"
+  }
 }
 
 # Output the ECR repository URL
