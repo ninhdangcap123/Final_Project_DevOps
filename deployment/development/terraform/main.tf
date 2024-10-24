@@ -1,3 +1,13 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.7"
+    }
+  }
+  required_version = ">= 1.0.0"
+}
+
 provider "aws" {
   region = "us-east-1"
 }
@@ -186,20 +196,6 @@ resource "aws_ecr_repository" "my_ecr" {
   }
 }
 
-# Create an EKS cluster
-resource "aws_eks_cluster" "my_cluster" {
-  name     = "ninhnh-vti-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
-
-  vpc_config {
-    subnet_ids = aws_subnet.public_subnet[*].id
-  }
-
-  tags = {
-    Name = "ninhnh-vti-cluster"
-  }
-}
-
 # IAM role for EKS
 resource "aws_iam_role" "eks_cluster_role" {
   name = "eks_cluster_role"
@@ -223,7 +219,88 @@ resource "aws_iam_role" "eks_cluster_role" {
   }
 }
 
+# Create an EKS cluster
+resource "aws_eks_cluster" "my_cluster" {
+  name     = "ninhnh-vti-cluster"
+  role_arn = aws_iam_role.eks_cluster_role.arn
+
+  vpc_config {
+    subnet_ids = aws_subnet.public_subnet[*].id
+  }
+
+  tags = {
+    Name = "ninhnh-vti-cluster"
+  }
+}
+
+# IAM Role for EKS Node Group
+resource "aws_iam_role" "eks_node_role" {
+  name = "eks_node_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Effect    = "Allow"
+        Sid       = ""
+      },
+    ]
+  })
+
+  tags = {
+    Name = "ninhnh-vti-eks-node-role"
+  }
+}
+
+# Attach policies to the EKS Node Role
+resource "aws_iam_role_policy_attachment" "EKS_CNI_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.eks_node_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_node_role.name
+}
+
+# Create an EKS Node Group
+resource "aws_eks_node_group" "my_node_group" {
+  cluster_name    = aws_eks_cluster.my_cluster.name
+  node_group_name = "ninhnh-vti-node-group"
+  node_role_arn   = aws_iam_role.eks_node_role.arn
+  subnet_ids      = aws_subnet.public_subnet[*].id
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1
+  }
+
+  tags = {
+    Name = "ninhnh-vti-node-group"
+  }
+}
+
+# Output the EKS cluster endpoint
+output "eks_cluster_endpoint" {
+  value = aws_eks_cluster.my_cluster.endpoint
+}
+
+# Output the EKS cluster name
+output "eks_cluster_name" {
+  value = aws_eks_cluster.my_cluster.name
+}
+
 # Output the ECR repository URL
 output "ecr_repository_url" {
   value = aws_ecr_repository.my_ecr.repository_url
+}
+
+# Output the RDS instance endpoint
+output "rds_endpoint" {
+  value = aws_db_instance.default.endpoint
 }

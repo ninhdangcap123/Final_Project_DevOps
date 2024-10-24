@@ -1,8 +1,14 @@
 # Final_Project_DevOps
 
-Front End Static Hosting: https://ninhnh-vti-bucket.s3.us-east-1.amazonaws.com/index.html
+Step 1: Create Terraform files to create resources : RDS, EKS, ECR, VPC, S3, Subnet, SSM, Cluster, ROLES
 
-S3 Bucker: ninhnh-vti-bucket
+Step 2: Create Python app to connect to RDS, test run using python app.py
 
-RDS endpoint : ninhnh-vti-rds-database.cfwoy6guyqmd.us-east-1.rds.amazonaws.com
+Step 3: Create Dockerfile to build the python app image, test using docker build and docker run 
+
+Step 4: Push the Docker Image to the ECR
+
+Step 5: Deploy the Image to EKS
+
+Step 6: Setup an EC2 Instance and set up jenkins
 
