@@ -100,6 +100,23 @@ resource "aws_s3_bucket_website_configuration" "static_site_config" {
   }
 }
 
+# Add a bucket policy to allow public access for static website hosting
+resource "aws_s3_bucket_policy" "static_site_policy" {
+  bucket = aws_s3_bucket.static_site.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.static_site.arn}/*"
+      }
+    ]
+  })
+}
 # Security group to allow PostgreSQL traffic
 resource "aws_security_group" "default" {
   vpc_id = aws_vpc.default.id
@@ -330,9 +347,10 @@ resource "aws_instance" "jenkins" {
               #!/bin/bash
               yum update -y
               amazon-linux-extras install docker -y
+              systemctl enable docker
               service docker start
-              usermod -a -G docker ec2-user
-              docker run -d -p 8080:8080 jenkins/jenkins:lts
+              usermod -aG docker ec2-user
+              docker run -d --restart unless-stopped -p 8080:8080 jenkins/jenkins:lts
               EOF
 
   tags = {

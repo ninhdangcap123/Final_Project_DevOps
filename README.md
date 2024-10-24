@@ -12,3 +12,5 @@ Step 5: Deploy the Image to EKS
 
 Step 6: Setup an EC2 Instance and set up jenkins
 
+Step 7: Create CICD job for auto deploy Front End
+
