@@ -40,6 +40,18 @@ resource "aws_subnet" "public_subnet" {
   }
 }
 
+# Create private subnets for EKS nodes
+resource "aws_subnet" "private_subnet" {
+  count                   = 2
+  vpc_id                 = aws_vpc.default.id
+  cidr_block             = "10.0.${count.index + 2}.0/24"  # Adjusting CIDR for private subnets
+  availability_zone      = element(data.aws_availability_zones.available.names, count.index)
+
+  tags = {
+    Name = "ninhnh-vti-private-subnet-${count.index}"
+  }
+}
+
 # Create an Internet Gateway
 resource "aws_internet_gateway" "default" {
   vpc_id = aws_vpc.default.id
@@ -163,7 +175,7 @@ data "aws_ssm_parameter" "db_password" {
 
 # Create a PostgreSQL RDS instance
 resource "aws_db_instance" "default" {
-allocated_storage       = 20
+  allocated_storage       = 20
   engine                 = "postgres"
   engine_version         = "16.3"
   instance_class         = "db.t4g.micro"
@@ -225,7 +237,7 @@ resource "aws_eks_cluster" "my_cluster" {
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids = aws_subnet.public_subnet[*].id
+    subnet_ids = aws_subnet.private_subnet[*].id  # Use private subnets for nodes
   }
 
   tags = {
@@ -233,57 +245,66 @@ resource "aws_eks_cluster" "my_cluster" {
   }
 }
 
-# IAM Role for EKS Node Group
-resource "aws_iam_role" "eks_node_role" {
-  name = "eks_node_role"
+# # IAM Role for EKS Node Group
+# resource "aws_iam_role" "eks_node_role" {
+#   name = "eks_node_role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action    = "sts:AssumeRole"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Effect    = "Allow"
-        Sid       = ""
-      },
-    ]
-  })
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Action    = "sts:AssumeRole"
+#         Principal = {
+#           Service = "ec2.amazonaws.com"
+#         }
+#         Effect    = "Allow"
+#         Sid       = ""
+#       },
+#     ]
+#   })
 
-  tags = {
-    Name = "ninhnh-vti-eks-node-role"
-  }
-}
+#   tags = {
+#     Name = "ninhnh-vti-eks-node-role"
+#   }
+# }
 
-# Attach policies to the EKS Node Role
-resource "aws_iam_role_policy_attachment" "EKS_CNI_Policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.eks_node_role.name
-}
+# # Attach necessary policies to the EKS Node Role
+# resource "aws_iam_role_policy_attachment" "EKS_Worker_Node_Policy" {
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+#   role       = aws_iam_role.eks_node_role.name
+# }
 
-resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.eks_node_role.name
-}
+# resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+#   role       = aws_iam_role.eks_node_role.name
+# }
 
-# Create an EKS Node Group
-resource "aws_eks_node_group" "my_node_group" {
-  cluster_name    = aws_eks_cluster.my_cluster.name
-  node_group_name = "ninhnh-vti-node-group"
-  node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = aws_subnet.public_subnet[*].id
+# resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+#   role       = aws_iam_role.eks_node_role.name
+# }
 
-  scaling_config {
-    desired_size = 2
-    max_size     = 3
-    min_size     = 1
-  }
+# # Create an EKS Node Group
+# resource "aws_eks_node_group" "my_node_group" {
+#   cluster_name    = aws_eks_cluster.my_cluster.name
+#   node_group_name = "ninhnh-vti-node-group"
+#   node_role_arn   = aws_iam_role.eks_node_role.arn
+#   subnet_ids      = aws_subnet.private_subnet[*].id  # Use private subnets
 
-  tags = {
-    Name = "ninhnh-vti-node-group"
-  }
-}
+#   scaling_config {
+#     desired_size = 2
+#     max_size     = 3
+#     min_size     = 1
+#   }
+
+#   depends_on = [
+#     aws_eks_cluster.my_cluster
+#   ]
+
+#   tags = {
+#     Name = "ninhnh-vti-node-group"
+#   }
+# }
 
 # Output the EKS cluster endpoint
 output "eks_cluster_endpoint" {

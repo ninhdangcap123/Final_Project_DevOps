@@ -13,7 +13,7 @@ def get_db_credentials():
         username = ssm.get_parameter(Name='/ninhnh/db_username', WithDecryption=True)['Parameter']['Value']
         password = ssm.get_parameter(Name='/ninhnh/db_password', WithDecryption=True)['Parameter']['Value']
         
-        logging.info(f'Retrieved username: {username}')  # Log username
+        logging.info('Successfully retrieved database credentials.')
         return username, password
     except Exception as e:
         logging.error(f'Error retrieving credentials from SSM: {e}')
@@ -25,14 +25,15 @@ def connect_to_db():
     rds_host = os.getenv('RDS_HOST', 'terraform-20241024033946277900000002.cfwoy6guyqmd.us-east-1.rds.amazonaws.com')
 
     try:
+        # Attempt to connect to the PostgreSQL database
         connection = pg8000.connect(
             host=rds_host,
             database='postgres',  # Adjust if you have a specific database name
             user=username,
             password=password,
-            timeout=10  # Increase timeout to 10 seconds
+            timeout=10  # Set a timeout for connection
         )
-        logging.info('Connected to database.')
+        logging.info('Connected to the database.')
 
         # Print connection properties
         logging.info(f'Connection properties: Host={rds_host}, User={username}')
@@ -43,11 +44,18 @@ def connect_to_db():
         db_version = cursor.fetchone()[0]
         logging.info(f'Database version: {db_version}')
 
-        # Clean up
+        # Clean up cursor
         cursor.close()
-        connection.close()
+
+    except pg8000.OperationalError as e:
+        logging.error(f'Operational error connecting to the database: {e}')
     except Exception as e:
         logging.error(f'Error connecting to the database: {e}')
+    finally:
+        # Ensure the connection is closed properly
+        if 'connection' in locals() and connection:
+            connection.close()
+            logging.info('Database connection closed.')
 
 if __name__ == "__main__":
     connect_to_db()
