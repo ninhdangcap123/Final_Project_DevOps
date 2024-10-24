@@ -31,11 +31,10 @@ pipeline {
         stage('Deploy to S3') {
             steps {
                 script {
-                    // Set the AWS CLI path
-                    withEnv(["PATH+AWS=/usr/local/bin"]) {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
                         // AWS CLI commands to sync your local directory with the S3 bucket
                         sh '''
-                        /usr/local/bin/aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region us-east-1
+                        aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region us-east-1
                         '''
                     }
                 }
