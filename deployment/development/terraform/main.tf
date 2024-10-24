@@ -245,6 +245,101 @@ resource "aws_eks_cluster" "my_cluster" {
   }
 }
 
+# IAM Role for EC2 (Jenkins)
+resource "aws_iam_role" "jenkins_role" {
+  name = "jenkins_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Effect    = "Allow"
+        Sid       = ""
+      },
+    ]
+  })
+
+  tags = {
+    Name = "ninhnh-vti-jenkins-role"
+  }
+}
+
+# Attach policies to the Jenkins Role
+resource "aws_iam_role_policy_attachment" "Jenkins_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess"
+  role       = aws_iam_role.jenkins_role.name
+}
+
+# Security group for Jenkins
+resource "aws_security_group" "jenkins_sg" {
+  vpc_id = aws_vpc.default.id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow HTTP access to Jenkins from anywhere
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow SSH access from anywhere
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ninhnh-vti-jenkins-sg"
+  }
+}
+
+# Data source to get the latest Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+
+  owners = ["137112412989"]  # Amazon's official AMI owner ID for Amazon Linux 2
+
+  filter {
+    name = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+}
+
+# Create Jenkins EC2 instance using the latest Amazon Linux 2 AMI
+resource "aws_instance" "jenkins" {
+  ami                    = data.aws_ami.amazon_linux.id  # Use the latest AMI
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.public_subnet[0].id
+  key_name               = "ninhnh-vti-ssh-key"
+  vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
+  associate_public_ip_address = true
+  
+  # Install Docker and Jenkins on startup
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              amazon-linux-extras install docker -y
+              service docker start
+              usermod -a -G docker ec2-user
+              docker run -d -p 8080:8080 jenkins/jenkins:lts
+              EOF
+
+  tags = {
+    Name = "ninhnh-vti-jenkins-instance"
+  }
+}
+
 # # IAM Role for EKS Node Group
 # resource "aws_iam_role" "eks_node_role" {
 #   name = "eks_node_role"
@@ -324,4 +419,9 @@ output "ecr_repository_url" {
 # Output the RDS instance endpoint
 output "rds_endpoint" {
   value = aws_db_instance.default.endpoint
+}
+
+# Output the Jenkins URL
+output "jenkins_url" {
+  value = "http://${aws_instance.jenkins.public_ip}:8080"
 }
