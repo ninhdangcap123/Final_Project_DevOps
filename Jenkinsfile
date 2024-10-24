@@ -1,25 +1,39 @@
 pipeline {
     agent any
 
-    environment {
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        S3_BUCKET = 'ninhnh-vti-bucket-static-web'
-    }
-
     stages {
-        stage('Clone Repo') {
+        stage('Clone Repository') {
             steps {
+                // Clone your Git repository containing the HTML file
                 git 'https://github.com/ninhdangcap123/Final_Project_DevOps.git'
             }
         }
+
+        stage('Build') {
+            steps {
+                // (Optional) Any build steps you need, e.g., packaging or processing
+                echo 'Building...'
+            }
+        }
+
         stage('Deploy to S3') {
             steps {
                 script {
-                    // Deploy the HTML file to S3
-                    sh 'aws s3 sync . s3://$S3_BUCKET --exclude "*" --include "index.html"'
+                    // AWS CLI commands to sync your local directory with the S3 bucket
+                    sh '''
+                    aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete
+                    '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deployment to S3 was successful!'
+        }
+        failure {
+            echo 'Deployment to S3 failed.'
         }
     }
 }
