@@ -10,8 +10,7 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                // Clone your Git repository containing the HTML file
-                git 'https://github.com/ninhdangcap123/Final_Project_DevOps'
+                git url: 'https://github.com/ninhdangcap123/Final_Project_DevOps.git', branch: 'main'
             }
         }
 
