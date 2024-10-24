@@ -34,7 +34,7 @@ pipeline {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
                         // AWS CLI commands to sync your local directory with the S3 bucket
                         sh '''
-                        aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region us-east-1
+                        aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region us-east-1 --exclude "*" --include "*.html"
                         '''
                     }
                 }
