@@ -8,26 +8,36 @@ pipeline {
     }
 
     stages {
+        stage('Check User') {
+            steps {
+                sh 'whoami'
+            }
+        }
+
+
         stage('Clone Repository') {
             steps {
                 git url: 'https://github.com/ninhdangcap123/Final_Project_DevOps.git', branch: 'main'
             }
         }
 
-        stage('Build') {
+        stage('Check AWS CLI') {
             steps {
-                // (Optional) Any build steps you need, e.g., packaging or processing
-                echo 'Building...'
+                sh 'echo $PATH'
+                sh 'aws --version'
             }
         }
 
         stage('Deploy to S3') {
             steps {
                 script {
-                    // AWS CLI commands to sync your local directory with the S3 bucket
-                    sh '''
-                    aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region ${AWS_REGION}
-                    '''
+                    // Set the AWS CLI path
+                    withEnv(["PATH+AWS=/usr/local/bin"]) {
+                        // AWS CLI commands to sync your local directory with the S3 bucket
+                        sh '''
+                        /usr/local/bin/aws s3 sync . s3://ninhnh-vti-bucket-static-web --delete --region us-east-1
+                        '''
+                    }
                 }
             }
         }
