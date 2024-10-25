@@ -417,45 +417,19 @@ resource "aws_instance" "jenkins" {
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   associate_public_ip_address = true
   
-  # Install Docker, Jenkins, and AWS CLI on startup
+  # Install Docker and Jenkins on startup
   user_data = <<-EOF
-              #!/bin/bash
-              # Update the system
-              yum update -y
-              
-              # Install Docker
-              amazon-linux-extras install docker -y
-              yum install -y sudo
-              systemctl enable docker
-              service docker start
-              
-              # Add ec2-user to the docker group
-              usermod -aG docker ec2-user
-              
-              # Pull the Jenkins image
-              docker pull jenkins/jenkins:lts
-              
-              # Run Jenkins container with Docker socket mounted
-              # Also, run as a privileged container to avoid permission issues
-              docker run -d --restart unless-stopped -p 8080:8080 \
-                --privileged \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                jenkins/jenkins:lts
-              
-              # Install AWS CLI
-              yum install -y unzip
-              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip awscliv2.zip
-              sudo ./aws/install
-              
-              # Create AWS credentials directory
-              mkdir -p /home/ec2-user/.aws
-              echo "[default]" > /home/ec2-user/.aws/credentials
-              echo "aws_access_key_id = YOUR_AWS_ACCESS_KEY" >> /home/ec2-user/.aws/credentials
-              echo "aws_secret_access_key = YOUR_AWS_SECRET_KEY" >> /home/ec2-user/.aws/credentials
-              echo "[default]" > /home/ec2-user/.aws/config
-              echo "region = us-east-1" >> /home/ec2-user/.aws/config
-              EOF
+                #!/bin/bash
+                yum update -y
+                amazon-linux-extras install docker -y
+                systemctl enable docker
+                service docker start
+                usermod -aG docker ec2-user
+                # Pull the Jenkins image
+                docker pull jenkins/jenkins:lts
+                # Run Jenkins container with Docker socket mounted
+                docker run -d --restart unless-stopped -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts
+                EOF
 
   tags = {
     Name = "ninhnh-vti-jenkins-instance"
