@@ -262,6 +262,63 @@ resource "aws_eks_cluster" "my_cluster" {
   }
 }
 
+# IAM Role for EKS Nodes (Node Group)
+resource "aws_iam_role" "eks_node_role" {
+  name = "eks_node_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = {
+    Name = "ninhnh-vti-eks-node-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.eks_node_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.eks_node_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_node_role.name
+}
+
+# EKS Node Group
+resource "aws_eks_node_group" "eks_node_group" {
+  cluster_name    = aws_eks_cluster.my_cluster.name
+  node_group_name = "ninhnh-vti-node-group"
+  node_role_arn   = aws_iam_role.eks_node_role.arn
+  subnet_ids      = aws_subnet.private_subnet[*].id
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1
+  }
+
+  instance_types = ["t3.medium"]
+
+  tags = {
+    Name = "ninhnh-vti-eks-node-group"
+  }
+}
+
 # IAM Role for EC2 (Jenkins)
 resource "aws_iam_role" "jenkins_role" {
   name = "jenkins_role"
@@ -357,67 +414,6 @@ resource "aws_instance" "jenkins" {
     Name = "ninhnh-vti-jenkins-instance"
   }
 }
-
-# # IAM Role for EKS Node Group
-# resource "aws_iam_role" "eks_node_role" {
-#   name = "eks_node_role"
-
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Action    = "sts:AssumeRole"
-#         Principal = {
-#           Service = "ec2.amazonaws.com"
-#         }
-#         Effect    = "Allow"
-#         Sid       = ""
-#       },
-#     ]
-#   })
-
-#   tags = {
-#     Name = "ninhnh-vti-eks-node-role"
-#   }
-# }
-
-# # Attach necessary policies to the EKS Node Role
-# resource "aws_iam_role_policy_attachment" "EKS_Worker_Node_Policy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-#   role       = aws_iam_role.eks_node_role.name
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-#   role       = aws_iam_role.eks_node_role.name
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-#   role       = aws_iam_role.eks_node_role.name
-# }
-
-# # Create an EKS Node Group
-# resource "aws_eks_node_group" "my_node_group" {
-#   cluster_name    = aws_eks_cluster.my_cluster.name
-#   node_group_name = "ninhnh-vti-node-group"
-#   node_role_arn   = aws_iam_role.eks_node_role.arn
-#   subnet_ids      = aws_subnet.private_subnet[*].id  # Use private subnets
-
-#   scaling_config {
-#     desired_size = 2
-#     max_size     = 3
-#     min_size     = 1
-#   }
-
-#   depends_on = [
-#     aws_eks_cluster.my_cluster
-#   ]
-
-#   tags = {
-#     Name = "ninhnh-vti-node-group"
-#   }
-# }
 
 # Output the EKS cluster endpoint
 output "eks_cluster_endpoint" {
