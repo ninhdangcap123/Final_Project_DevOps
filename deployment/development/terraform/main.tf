@@ -435,7 +435,11 @@ resource "aws_instance" "jenkins" {
               docker pull jenkins/jenkins:lts
               
               # Run Jenkins container with Docker socket mounted
-              docker run -d --restart unless-stopped -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts
+              # Also, run as a privileged container to avoid permission issues
+              docker run -d --restart unless-stopped -p 8080:8080 \
+                --privileged \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                jenkins/jenkins:lts
               
               # Install AWS CLI
               yum install -y unzip
