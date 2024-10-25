@@ -320,22 +320,22 @@ resource "aws_iam_role_policy_attachment" "eks_registry_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# Create an EKS Node Group
-resource "aws_eks_node_group" "my_node_group" {
-  cluster_name    = aws_eks_cluster.my_cluster.name
-  node_group_name = "ninhnh-vti-node-group"
-  node_role_arn   = aws_iam_role.eks_node_group_role.arn
+# # Create an EKS Node Group
+# resource "aws_eks_node_group" "my_node_group" {
+#   cluster_name    = aws_eks_cluster.my_cluster.name
+#   node_group_name = "ninhnh-vti-node-group"
+#   node_role_arn   = aws_iam_role.eks_node_group_role.arn
 
-  subnet_ids = aws_subnet.private_subnet[*].id
+#   subnet_ids = aws_subnet.private_subnet[*].id
 
-  scaling_config {
-    desired_size = 2
-    max_size     = 3
-    min_size     = 1
-  }
+#   scaling_config {
+#     desired_size = 2
+#     max_size     = 3
+#     min_size     = 1
+#   }
 
-  depends_on = [aws_eks_cluster.my_cluster]
-}
+#   depends_on = [aws_eks_cluster.my_cluster]
+# }
 
 # IAM Role for EC2 (Jenkins)
 resource "aws_iam_role" "jenkins_role" {
@@ -417,15 +417,39 @@ resource "aws_instance" "jenkins" {
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   associate_public_ip_address = true
   
-  # Install Docker and Jenkins on startup
+  # Install Docker, Jenkins, and AWS CLI on startup
   user_data = <<-EOF
               #!/bin/bash
+              # Update the system
               yum update -y
+              
+              # Install Docker
               amazon-linux-extras install docker -y
               systemctl enable docker
               service docker start
+              
+              # Add ec2-user to the docker group
               usermod -aG docker ec2-user
-              docker run -d --restart unless-stopped -p 8080:8080 jenkins/jenkins:lts
+              
+              # Pull the Jenkins image
+              docker pull jenkins/jenkins:lts
+              
+              # Run Jenkins container with Docker socket mounted
+              docker run -d --restart unless-stopped -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts
+              
+              # Install AWS CLI
+              yum install -y unzip
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              sudo ./aws/install
+              
+              # Create AWS credentials directory
+              mkdir -p /home/ec2-user/.aws
+              echo "[default]" > /home/ec2-user/.aws/credentials
+              echo "aws_access_key_id = YOUR_AWS_ACCESS_KEY" >> /home/ec2-user/.aws/credentials
+              echo "aws_secret_access_key = YOUR_AWS_SECRET_KEY" >> /home/ec2-user/.aws/credentials
+              echo "[default]" > /home/ec2-user/.aws/config
+              echo "region = us-east-1" >> /home/ec2-user/.aws/config
               EOF
 
   tags = {
