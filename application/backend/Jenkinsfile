@@ -33,7 +33,7 @@ pipeline {
 
         stage('List Files') {
             steps {
-                dir('application/backend') { // Adjust this to your Dockerfile location
+                dir('application/backend') {
                     sh 'ls -l'
                 }
             }
@@ -42,7 +42,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    dir('application/backend') { // Adjust this to your Dockerfile location
+                    dir('application/backend') {
                         // Build the Docker image from the Dockerfile
                         sh 'docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .'
                     }
