@@ -31,11 +31,28 @@ pipeline {
             }
         }
 
+        stage('Check Docker') {
+            steps {
+                sh 'docker --version'
+                sh 'docker ps'
+            }
+        }
+
+        stage('List Files') {
+            steps {
+                dir('application/backend') { // Adjust this to your Dockerfile location
+                    sh 'ls -l'
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build the Docker image from the Dockerfile
-                    sh 'docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .'
+                    dir('application/backend') { // Adjust this to your Dockerfile location
+                        // Build the Docker image from the Dockerfile
+                        sh 'docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .'
+                    }
                 }
             }
         }
