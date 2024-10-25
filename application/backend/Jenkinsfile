@@ -31,13 +31,6 @@ pipeline {
             }
         }
 
-        stage('Check Docker') {
-            steps {
-                sh 'docker --version'
-                sh 'docker ps'
-            }
-        }
-
         stage('List Files') {
             steps {
                 dir('application/backend') { // Adjust this to your Dockerfile location
