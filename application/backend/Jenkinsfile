@@ -44,7 +44,7 @@ pipeline {
                 script {
                     dir('application/backend') {
                         sh 'ls -l'
-                        sh "docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
+                        sh "sudo docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
                     }
                 }
             }
@@ -53,13 +53,11 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
-                    // Tag the Docker image
                     sh '''
-                    docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                    sudo docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
-                    // Push the image to ECR
                     sh '''
-                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                    sudo docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
                 }
             }
