@@ -425,6 +425,7 @@ resource "aws_instance" "jenkins" {
               
               # Install Docker
               amazon-linux-extras install docker -y
+              yum install -y sudo
               systemctl enable docker
               service docker start
               
