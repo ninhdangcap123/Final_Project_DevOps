@@ -2,28 +2,42 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
-        ECR_REPOSITORY = 'backend'
-        IMAGE_TAG = 'latest'
-        CLUSTER_NAME = 'ninhnh-vti-cluster'
-        DEPLOYMENT_NAME = 'python-app-deployment'
-        AWS_ACCOUNT_ID = '084375555299'
+        AWS_REGION = 'us-east-1' // Your AWS region
+        AWS_DEFAULT_REGION = "${AWS_REGION}"
+        ECR_REPOSITORY = '084375555299.dkr.ecr.us-east-1.amazonaws.com/backend' // Your ECR repository name
+        IMAGE_TAG = 'latest' // Tag for the Docker image
+        CLUSTER_NAME = 'ninhnh-vti-cluster' // Your EKS cluster name
+        DEPLOYMENT_NAME = 'python-app-deployment' // Name of your Kubernetes deployment
+        AWS_ACCOUNT_ID = '084375555299' // Your AWS account ID
     }
 
     stages {
+        stage('Check User') {
+            steps {
+                sh 'whoami' // Check the user running Jenkins
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 git url: 'https://github.com/ninhdangcap123/Final_Project_DevOps.git', branch: 'main'
             }
         }
 
+        stage('Check AWS CLI') {
+            steps {
+                sh 'echo $PATH' // Print the PATH to check if AWS CLI is in it
+                sh 'aws --version' // Check the installed AWS CLI version
+            }
+        }
+
         stage('Login to ECR') {
             steps {
                 script {
-                    withCredentials([[$class: 'AmazonWebServicesCredentials', credentialsId: 'aws-credentials']]) {
-                        sh """
-                            aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh '''
+                        aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        '''
                     }
                 }
             }
@@ -32,12 +46,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Login to Amazon ECR
-                    sh """
-                        aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
-                    """
                     // Build the Docker image from the Dockerfile
-                    sh "docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG} ."
+                    sh 'docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .'
                 }
             }
         }
@@ -45,10 +55,14 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
+                    // Tag the Docker image
+                    sh '''
+                    docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                    '''
                     // Push the image to ECR
-                    sh """
-                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
-                    """
+                    sh '''
+                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                    '''
                 }
             }
         }
@@ -57,9 +71,11 @@ pipeline {
             steps {
                 script {
                     // Update the Kubernetes deployment with the new image
-                    sh """
-                        kubectl set image deployment/${DEPLOYMENT_NAME} ${DEPLOYMENT_NAME}=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
-                    """
+                    withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh '''
+                        kubectl set image deployment/${DEPLOYMENT_NAME} ${DEPLOYMENT_NAME}=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        '''
+                    }
                 }
             }
         }
@@ -67,10 +83,10 @@ pipeline {
 
     post {
         success {
-            echo 'Deployment successful!'
+            echo 'Deployment to EKS was successful!'
         }
         failure {
-            echo 'Deployment failed!'
+            echo 'Deployment to EKS failed.'
         }
     }
 }
