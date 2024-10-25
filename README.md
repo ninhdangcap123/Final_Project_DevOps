@@ -19,5 +19,5 @@ unzip awscliv2.zip
 ./aws/install
 docker restart objective_yonath
 
-Step 7: Create CICD job for auto deploy Front End
+Step 7: Create CICD job for auto deploy
 

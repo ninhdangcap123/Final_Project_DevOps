@@ -267,9 +267,24 @@ resource "aws_eks_cluster" "my_cluster" {
   }
 }
 
+# Create an Elastic IP for the NAT Gateway
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+}
+
+# Create NAT Gateway for private subnet internet access
+resource "aws_nat_gateway" "default" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id    = aws_subnet.public_subnet[0].id
+
+  tags = {
+    Name = "ninhnh-vti-nat-gateway"
+  }
+}
+
 # IAM Role for EKS Node Group
 resource "aws_iam_role" "eks_node_group_role" {
-  name = "ninhnh-vti-eks-node-role"
+  name = "ninhnh-vti-eks-node-group-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -285,32 +300,33 @@ resource "aws_iam_role" "eks_node_group_role" {
   })
 
   tags = {
-    Name = "ninhnh-vti-eks-node-role"
+    Name = "ninhnh-vti-eks-node-group-role"
   }
 }
 
-# Attach necessary policies to the IAM role for the node group
-resource "aws_iam_role_policy_attachment" "worker_node_policy" {
+# Attach policies to the EKS Node Group IAM role
+resource "aws_iam_role_policy_attachment" "eks_node_group_policy" {
+  role       = aws_iam_role.eks_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.eks_node_group_role.name
 }
 
-resource "aws_iam_role_policy_attachment" "cni_policy" {
+resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
+  role       = aws_iam_role.eks_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.eks_node_group_role.name
 }
 
-resource "aws_iam_role_policy_attachment" "ec2_registry_policy" {
+resource "aws_iam_role_policy_attachment" "eks_registry_policy" {
+  role       = aws_iam_role.eks_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.eks_node_group_role.name
 }
 
-# EKS Node Group
-resource "aws_eks_node_group" "eks_node_group" {
+# Create an EKS Node Group
+resource "aws_eks_node_group" "my_node_group" {
   cluster_name    = aws_eks_cluster.my_cluster.name
   node_group_name = "ninhnh-vti-node-group"
   node_role_arn   = aws_iam_role.eks_node_group_role.arn
-  subnet_ids      = aws_subnet.private_subnet[*].id
+
+  subnet_ids = aws_subnet.private_subnet[*].id
 
   scaling_config {
     desired_size = 2
@@ -318,19 +334,7 @@ resource "aws_eks_node_group" "eks_node_group" {
     min_size     = 1
   }
 
-  instance_types = ["t3.medium"]
-
-  tags = {
-    Name = "ninhnh-vti-eks-node-group"
-    "kubernetes.io/cluster/${aws_eks_cluster.my_cluster.name}" = "shared"  # Ensure tagging
-  }
-
-  depends_on = [
-    aws_iam_role.eks_node_group_role,  # Ensure IAM role is created before the node group
-    aws_iam_role_policy_attachment.worker_node_policy,
-    aws_iam_role_policy_attachment.cni_policy,
-    aws_iam_role_policy_attachment.ec2_registry_policy
-  ]
+  depends_on = [aws_eks_cluster.my_cluster]
 }
 
 # IAM Role for EC2 (Jenkins)
