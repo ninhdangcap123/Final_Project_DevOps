@@ -455,3 +455,15 @@ output "rds_endpoint" {
 output "jenkins_url" {
   value = "http://${aws_instance.jenkins.public_ip}:8080"
 }
+
+resource "local_file" "env_file" {
+  content = <<-EOT
+    EKS_CLUSTER_ENDPOINT=${aws_eks_cluster.my_cluster.endpoint}
+    ECR_REPOSITORY_URL=${aws_ecr_repository.my_ecr.repository_url}
+    RDS_ENDPOINT=${aws_db_instance.default.endpoint}
+    JENKINS_URL=http://${aws_instance.jenkins.public_ip}:8080
+  EOT
+
+  filename = "${path.module}/output.env"  # Adjust the path as needed
+}
+
