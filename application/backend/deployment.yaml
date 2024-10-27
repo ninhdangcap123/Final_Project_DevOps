@@ -16,12 +16,15 @@ spec:
     spec:
       containers:
       - name: python-app-container
-        image: 084375555299.dkr.ecr.us-east-1.amazonaws.com/backend:latest
+        image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"  # Placeholder for CI/CD tool to replace
         ports:
         - containerPort: 5000
         env:
         - name: DB_HOST
-          value: terraform-20241024033946277900000002.cfwoy6guyqmd.us-east-1.rds.amazonaws.com
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: RDS_ENDPOINT  # Reference the ConfigMap key
         - name: DB_USERNAME
           valueFrom:
             secretKeyRef:
@@ -32,5 +35,3 @@ spec:
             secretKeyRef:
               name: db-credentials
               key: password
-        ports:
-          - containerPort: 80

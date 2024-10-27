@@ -6,6 +6,15 @@ import logging
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
+def load_env_file(filepath):
+    with open(filepath) as f:
+        for line in f:
+            # Remove whitespace and comments
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                os.environ[key] = value
+
 def get_db_credentials():
     region_name = 'us-east-1'
     ssm = boto3.client('ssm', region_name=region_name)
@@ -21,8 +30,11 @@ def get_db_credentials():
 
 
 def connect_to_db():
+    load_env_file('output.env')  # Load environment variables from the file
     username, password = get_db_credentials()
-    rds_host = os.getenv('RDS_HOST', 'terraform-20241024033946277900000002.cfwoy6guyqmd.us-east-1.rds.amazonaws.com')
+    rds_host = os.getenv('RDS_ENDPOINT')  # Get the RDS endpoint from the environment variable
+    
+    connection = None  # Initialize connection to None
 
     try:
         # Attempt to connect to the PostgreSQL database
@@ -53,7 +65,7 @@ def connect_to_db():
         logging.error(f'Error connecting to the database: {e}')
     finally:
         # Ensure the connection is closed properly
-        if 'connection' in locals() and connection:
+        if connection:
             connection.close()
             logging.info('Database connection closed.')
 

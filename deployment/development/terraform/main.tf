@@ -206,6 +206,8 @@ resource "aws_db_instance" "default" {
   skip_final_snapshot    = true
   publicly_accessible     = true
 
+  identifier             = "ninhnh-vti-rds-instance"
+
   depends_on = [
     aws_ssm_parameter.db_username,
     aws_ssm_parameter.db_password
@@ -451,6 +453,10 @@ output "rds_endpoint" {
   value = aws_db_instance.default.endpoint
 }
 
+output "rds_instance_identifier" {
+  value = aws_db_instance.default.id
+}
+
 # Output the Jenkins URL
 output "jenkins_url" {
   value = "http://${aws_instance.jenkins.public_ip}:8080"
@@ -462,8 +468,8 @@ resource "local_file" "env_file" {
     ECR_REPOSITORY_URL=${aws_ecr_repository.my_ecr.repository_url}
     RDS_ENDPOINT=${aws_db_instance.default.endpoint}
     JENKINS_URL=http://${aws_instance.jenkins.public_ip}:8080
+    DB_INSTANCE_IDENTIFIER=${aws_db_instance.default.identifier}
   EOT
 
-  filename = "${path.module}/output.env"  # Adjust the path as needed
+  filename = "${path.module}/output.env"
 }
-

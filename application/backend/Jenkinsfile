@@ -4,7 +4,6 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         AWS_DEFAULT_REGION = "${AWS_REGION}"
-        ECR_REPOSITORY = '084375555299.dkr.ecr.us-east-1.amazonaws.com/backend'
         IMAGE_TAG = 'latest'
         CLUSTER_NAME = 'ninhnh-vti-cluster'
         DEPLOYMENT_NAME = 'python-app-deployment'
@@ -31,6 +30,20 @@ pipeline {
             }
         }
 
+        stage('Load Environment Variables') {
+            steps {
+                script {
+                    // Load environment variables from output.env
+                    sh 'set -o allexport; source output.env; set +o allexport'
+                    env.RDS_URI = sh(script: 'echo $RDS_ENDPOINT', returnStdout: true).trim()
+                    env.ECR_REPOSITORY = sh(script: 'echo $ECR_REPOSITORY_URL', returnStdout: true).trim()
+
+                    echo "RDS URI: ${env.RDS_URI}"
+                    echo "ECR Repository URI: ${env.ECR_REPOSITORY}"
+                }
+            }
+        }
+
         stage('List Files') {
             steps {
                 dir('application/backend') {
@@ -54,11 +67,19 @@ pipeline {
             steps {
                 script {
                     sh '''
-                    docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                    docker push ${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
-                    sh '''
-                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
-                    '''
+                }
+            }
+        }
+
+        stage('Update Deployment YAML') {
+            steps {
+                script {
+                    // Replace the image in the Kubernetes deployment YAML with the actual image URI
+                    sh """
+                    sed -i 's|{{ .Values.image.repo }}:{{ .Values.image.tag }}|${ECR_REPOSITORY}:${IMAGE_TAG}|g' application/k8s/deployment.yaml
+                    """
                 }
             }
         }
@@ -66,11 +87,9 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 script {
-                    // Update the Kubernetes deployment with the new image
-                    // fix this code to work on frist deploy
                     withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         sh '''
-                        kubectl set image deployment/${DEPLOYMENT_NAME} ${DEPLOYMENT_NAME}=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        kubectl apply -f application/k8s/deployment.yaml
                         '''
                     }
                 }

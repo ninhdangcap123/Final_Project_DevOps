@@ -4,6 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         AWS_DEFAULT_REGION = "${AWS_REGION}"
+        S3_BUCKET_NAME = 'ninhnh-vti-bucket-static-web'
     }
 
     stages {
@@ -12,7 +13,6 @@ pipeline {
                 sh 'whoami'
             }
         }
-
 
         stage('Clone Repository') {
             steps {
@@ -24,6 +24,27 @@ pipeline {
             steps {
                 sh 'echo $PATH'
                 sh 'aws --version'
+            }
+        }
+
+        stage('Get S3 Website URL') {
+            steps {
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                        def websiteConfig = sh(
+                            script: "aws s3api get-bucket-website --bucket ${S3_BUCKET_NAME} --region ${AWS_REGION} --output json",
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (websiteConfig) {
+                            def websiteUrl = "http://${S3_BUCKET_NAME}.s3-website-${AWS_REGION}.amazonaws.com"
+                            env.S3_WEBSITE_URL = websiteUrl
+                            echo "S3 Website URL: ${env.S3_WEBSITE_URL}"
+                        } else {
+                            error("No website configuration found for bucket ${S3_BUCKET_NAME}")
+                        }
+                    }
+                }
             }
         }
 
@@ -43,6 +64,7 @@ pipeline {
     post {
         success {
             echo 'Deployment to S3 was successful!'
+            echo "The static site is available at: ${env.S3_WEBSITE_URL}"
         }
         failure {
             echo 'Deployment to S3 failed.'

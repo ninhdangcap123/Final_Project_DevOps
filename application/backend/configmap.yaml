@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  RDS_ENDPOINT: terraform-20241024033946277900000002.cfwoy6guyqmd.us-east-1.rds.amazonaws.com
+  IMAGE_REPO: 084375555299.dkr.ecr.us-east-1.amazonaws.com/backend
+  IMAGE_TAG: latest  # Change this to the desired tag, e.g., v1.0.0
