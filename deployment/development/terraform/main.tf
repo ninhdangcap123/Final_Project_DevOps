@@ -462,6 +462,17 @@ output "jenkins_url" {
   value = "http://${aws_instance.jenkins.public_ip}:8080"
 }
 
+# Output SSM credentials for the database
+output "db_username_ssm" {
+  value = data.aws_ssm_parameter.db_username.value
+}
+
+output "db_password_ssm" {
+  value = data.aws_ssm_parameter.db_password.value
+  sensitive = true  # Masking sensitive data
+}
+
+# Create a local file for environment variables
 resource "local_file" "env_file" {
   content = <<-EOT
     EKS_CLUSTER_ENDPOINT=${aws_eks_cluster.my_cluster.endpoint}
@@ -469,6 +480,8 @@ resource "local_file" "env_file" {
     RDS_ENDPOINT=${aws_db_instance.default.endpoint}
     JENKINS_URL=http://${aws_instance.jenkins.public_ip}:8080
     DB_INSTANCE_IDENTIFIER=${aws_db_instance.default.identifier}
+    DB_USERNAME_SSM=${data.aws_ssm_parameter.db_username.value}
+    DB_PASSWORD_SSM=${data.aws_ssm_parameter.db_password.value}
   EOT
 
   filename = "${path.module}/output.env"

@@ -1,4 +1,3 @@
-import boto3
 import pg8000
 import os
 import logging
@@ -16,16 +15,17 @@ def load_env_file(filepath):
                 os.environ[key] = value
 
 def get_db_credentials():
-    region_name = 'us-east-1'
-    ssm = boto3.client('ssm', region_name=region_name)
     try:
-        username = ssm.get_parameter(Name='/ninhnh/db_username', WithDecryption=True)['Parameter']['Value']
-        password = ssm.get_parameter(Name='/ninhnh/db_password', WithDecryption=True)['Parameter']['Value']
+        username = os.getenv('DB_USERNAME')  # Retrieve username from the environment
+        password = os.getenv('DB_PASSWORD')  # Retrieve password from the environment
         
-        logging.info('Successfully retrieved database credentials.')
+        if not username or not password:
+            raise ValueError("Database credentials not found in environment variables.")
+        
+        logging.info('Successfully retrieved database credentials from environment.')
         return username, password
     except Exception as e:
-        logging.error(f'Error retrieving credentials from SSM: {e}')
+        logging.error(f'Error retrieving credentials from environment: {e}')
         raise
 
 
