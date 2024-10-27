@@ -16,15 +16,12 @@ spec:
     spec:
       containers:
       - name: python-app-container
-        image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"  # Placeholder for CI/CD tool to replace
+        image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"
         ports:
         - containerPort: 5000
         env:
         - name: DB_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: RDS_ENDPOINT  # Reference the ConfigMap key
+          value: "DB_HOST_PLACEHOLDER"
         - name: DB_USERNAME
           valueFrom:
             secretKeyRef:

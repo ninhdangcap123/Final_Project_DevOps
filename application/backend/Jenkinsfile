@@ -76,9 +76,9 @@ pipeline {
         stage('Update Deployment YAML') {
             steps {
                 script {
-                    // Replace the image in the Kubernetes deployment YAML with the actual image URI
                     sh """
                     sed -i 's|{{ .Values.image.repo }}:{{ .Values.image.tag }}|${ECR_REPOSITORY}:${IMAGE_TAG}|g' application/k8s/deployment.yaml
+                    sed -i 's|DB_HOST_PLACEHOLDER|${RDS_URI}|g' application/k8s/deployment.yaml
                     """
                 }
             }
